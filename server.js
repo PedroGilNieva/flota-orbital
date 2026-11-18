@@ -17,6 +17,7 @@ const storage = {
 };
 const files = new Map([['/', ['index.html','text/html']], ['/style.css',['style.css','text/css']], ['/app.js',['app.js','text/javascript']], ['/art.js',['art.js','text/javascript']]]);
 files.set('/radar.js',['radar.js','text/javascript']);
+files.set('/fleet.js',['fleet.js','text/javascript']);
 
 async function readBody(req) {
   const chunks = [];

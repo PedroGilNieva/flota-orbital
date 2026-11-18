@@ -4,6 +4,8 @@ Batalla naval espacial para 2 a 4 personas. Cada piloto prepara cinco naves en s
 
 ## Jugar
 
+Para entrenar a solas, pulsa **Practicar contra 3 pilotos**, coloca tus naves y selecciona **Iniciar práctica**. Tienes el primer turno. Los tres rivales eligen sus disparos a partir del radar público. **Pantalla central** y **Volver a pilotar** cambian de vista en la misma pestaña. Para seguir la práctica en otro dispositivo, abre **Sala y registro** y copia el enlace de pantalla central.
+
 1. Escribe tu apodo y crea una sala privada o busca partida pública. Comparte la invitación con tus amigos.
 2. Elige una formación aleatoria o mueve tus cinco naves. Cada piloto confirma con **Flota lista**. El anfitrión puede iniciar con dos, tres o cuatro jugadores.
 3. Selecciona una coordenada y confirma el disparo. Afecta a todos los rivales. Cualquier impacto nuevo conserva el turno. Un fallo lo pasa al siguiente piloto activo.

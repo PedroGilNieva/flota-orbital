@@ -5,6 +5,42 @@ import { readFileSync } from 'node:fs';
 import { gameRequest } from '../service.js';
 
 const formation=[[0,1,2,3,4],[10,11,12,13],[20,21,22],[30,31,32],[40,41]];
+test('La práctica completa avanza con una sola consola y las consultas simultáneas comparten cada disparo',async(t)=>{
+  t.mock.timers.enable({apis:['Date'],now:100000});
+  const api=server(),human=await api('practice',{name:'Ana'});
+  const initial=await api('state',{},human);
+  assert.ok(initial.practice);
+  assert.equal(initial.players.filter(p=>p.ready && p.remaining===5).length,3);
+  await assert.rejects(api('join',{name:'Extra'},human));
+  assert.notEqual((await api('match',{name:'Otra persona'})).code,human.code);
+  let s=await api('ready',{fleet:formation},human);
+  const id=s.me.id, humanShots=new Set(), botShots=new Set();
+  assert.equal(s.turn,id);
+  for(let i=0;i<400 && s.phase==='playing';i++){
+    const sequence=s.shots.length,by=s.turn;
+    if(by===id){
+      const cell=humanShots.size;
+      humanShots.add(cell);
+      s=await api('fire',{cell,sequence},human);
+    }else{
+      t.mock.timers.tick(1500);
+      const [tv,pilot]=await Promise.all([api('state',{},human,''),api('state',{},human)]);
+      assert.equal(tv.me,null);
+      assert.ok(!JSON.stringify(tv).includes('"fleet"'));
+      assert.deepEqual(tv.shots,pilot.shots);
+      assert.equal(pilot.shots.length,sequence+1);
+      const shot=pilot.shots.at(-1);
+      assert.equal(shot.by,by);
+      assert.ok(!botShots.has(by+':'+shot.cell));
+      botShots.add(by+':'+shot.cell);
+      s=pilot;
+    }
+    if(s.phase==='playing' && s.shots.at(-1).hits.length)assert.equal(s.turn,by);
+  }
+  assert.ok(botShots.size>0);
+  assert.equal(s.phase,'over');
+  assert.equal(s.players.filter(p=>p.remaining>0).length,1);
+});
 function server(){
   const db=new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../drizzle/0000_rooms.sql',import.meta.url),'utf8'));

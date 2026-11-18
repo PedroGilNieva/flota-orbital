@@ -1,4 +1,4 @@
-export const sizes = [5, 4, 3, 3, 2];
+import { sizes } from './public/fleet.js';
 function randomHex(bytes) {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), n => n.toString(16).padStart(2,'0')).join('');
 }
@@ -34,7 +34,7 @@ export function start(r, p) {
   ensure(r.phase === 'lobby' && r.host === p.id, 'Solo el anfitrión puede iniciar.');
   ensure(r.players.length >= 2 && r.players.every(x => x.fleet.length === 5), 'Se necesitan al menos dos jugadores y todas las flotas listas.');
   r.phase = 'playing';
-  r.turn = r.players[Math.floor(Math.random()*r.players.length)].id;
+  r.turn = r.practice ? p.id : r.players[Math.floor(Math.random()*r.players.length)].id;
 }
 function advance(r, p) {
   const alive = r.players.filter(x => remaining(x) > 0);
@@ -74,7 +74,7 @@ export function leave(r, p) {
   }
 }
 export function view(r, p) {
-  return { code: r.code, public: r.public, phase: r.phase, host: r.host, turn: r.turn, shots: r.shots,
+  return { code: r.code, public: r.public, practice: !!r.practice, phase: r.phase, host: r.host, turn: r.turn, shots: r.shots,
     players: r.players.map(x => ({ id: x.id, name: x.name, ready: !!x.fleet.length, remaining: remaining(x), retired: x.retired })),
     me: p ? { id: p.id, fleet: p.fleet, damage: p.damage } : null };
 }

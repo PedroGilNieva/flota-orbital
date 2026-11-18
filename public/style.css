@@ -13,6 +13,9 @@
 .flight-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .flight-top h1{font-size:clamp(18px,3vw,32px);line-height:1.1;overflow-wrap:anywhere}
 .flight-top button,.in-flight #rules{padding:5px 9px;font-size:13px}
+.flight-tools{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.flight-tools .button{padding:5px 9px;font-size:13px;color:var(--mint);text-align:center}
+@media(max-width:440px){.flight-tools>*{line-height:1.15}.flight-top{gap:4px}.flight-tools{flex-shrink:0;max-width:60%}}
 .flight-grid{flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:minmax(0,1.6fr) minmax(230px,1fr);grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"radar squad" "radar command" "radar feed"}
 .radar-pane,.command,.squad,.feed{border:1px solid var(--line);background:var(--paper);border-radius:9px}
 .radar-pane{grid-area:radar;padding:10px;display:flex;flex-direction:column;min-height:0;min-width:0}

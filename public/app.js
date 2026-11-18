@@ -1,8 +1,9 @@
 import { scene,mini,ships } from './art.js';
+import { sizes as lengths, randomFleet } from './fleet.js';
 import { radarContacts } from './radar.js';
 
 const $ = s => document.querySelector(s);
-const main=$('#main'), lengths=[5,4,3,3,2], letters='ABCDEFGHIJ';
+const main=$('#main'), letters='ABCDEFGHIJ';
 const params=new URLSearchParams(location.search);
 let code=(params.get('sala') || '').toUpperCase();
 const spectator=params.get('vista')==='central';
@@ -14,18 +15,6 @@ function say(message){$('#notice').textContent=message;clearTimeout(timer);timer
 function coord(c){return letters[Math.floor(c/10)]+(c%10+1);}
 function name(id){return escape(state.players.find(p=>p.id===id)?.name || 'Piloto');}
 function link(central){const u=new URL('/',location.origin);u.searchParams.set('sala',code);if(central)u.searchParams.set('vista','central');return u.href;}
-function randomFleet(){
-  const used=new Set();
-  return lengths.map(len=>{
-    for(;;){
-      const v=Math.random()<.5;
-      const row=Math.floor(Math.random()*(v?11-len:10)),col=Math.floor(Math.random()*(v?10:11-len));
-      const cells=Array.from({length:len},(_,i)=>row*10+col+i*(v?10:1));
-      if(cells.some(c=>used.has(c)))continue;
-      cells.forEach(c=>used.add(c));return cells;
-    }
-  });
-}
 async function api(action,data){
   const res=await fetch('/api/'+action+'?room='+encodeURIComponent(code),{method:data?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:data?JSON.stringify(data):undefined});
   const value=await res.json();if(!res.ok)throw Error(value.error || 'No se pudo conectar.');return value;
@@ -36,14 +25,16 @@ function fleetStrip(){
 function art(){document.querySelectorAll('canvas[data-ship]').forEach(c=>mini(c,Number(c.dataset.ship)));}
 function home(){
   main.innerHTML=`<section class="hero"><canvas id="space" aria-hidden="true"></canvas><div class="hero-text"><div class="eyebrow"><i></i> BATALLA NAVAL ESPACIAL</div><h1>Flota<br><em>Orbital</em></h1><p>Una coordenada. Hasta tres flotas enemigas.<br>Si aciertas, vuelves a disparar.</p></div></section>
-  <div class="homegrid"><section class="panel"><div class="eyebrow">MULTIJUGADOR · 2–4 PILOTOS</div><h2>${code?'Entra a la sala '+escape(code):'Entra en órbita'}</h2><form id="entry"><label for="alias">Tu apodo</label><input id="alias" maxlength="20" required placeholder="Nombre de piloto" autocomplete="nickname"><div class="actions">${code?'<button class="primary" data-action="join">Unirme a la sala →</button>':'<button class="primary" data-action="create">Crear sala privada →</button><button data-action="match">Buscar partida</button>'}</div></form>
+  <div class="homegrid"><section class="panel"><div class="eyebrow">MULTIJUGADOR · 2–4 PILOTOS</div><h2>${code?'Entra a la sala '+escape(code):'Entra en órbita'}</h2><form id="entry"><label for="alias">Tu apodo</label><input id="alias" maxlength="20" required placeholder="Nombre de piloto" autocomplete="nickname"><div class="actions">${code?'<button class="primary" data-action="join">Unirme a la sala →</button>':'<button class="primary" data-action="create">Crear sala privada →</button><button data-action="match">Buscar partida</button><button data-action="practice" formnovalidate>Practicar contra 3 pilotos</button>'}</div></form>
   ${code?'<a class="sub" href="/">Volver al inicio</a>':'<form id="byCode" class="codeform"><label for="roomcode">¿Tienes un código de sala?</label><div><input id="roomcode" maxlength="8" required pattern="[a-fA-F0-9]{8}" placeholder="Código de 8 caracteres"><button>Entrar →</button></div></form>'}</section>
   <section class="panel hangar"><div class="eyebrow">HANGAR</div><h2>Tu escuadrón</h2>${fleetStrip()}<p class="sub">Cinco naves por piloto en un tablero secreto de 10 × 10.</p></section></div>`;
   scene($('#space'));art();$('#alias').value=localStorage.getItem('flota-apodo') || '';
   $('#entry').onsubmit=async e=>{
-    e.preventDefault();if(busy)return;busy=true;const alias=$('#alias').value.trim();
+    e.preventDefault();if(busy)return;busy=true;
+    const action=e.submitter?.dataset.action || (code?'join':'create');
+    const alias=$('#alias').value.trim() || (action==='practice'?'Piloto':'');
     try{
-      const result=await api(e.submitter?.dataset.action || (code?'join':'create'),{name:alias});
+      const result=await api(action,{name:alias});
       localStorage.setItem('flota-apodo',alias);sessionStorage.setItem('piloto-'+result.code,result.token);
       location.assign('/?sala='+result.code);
     } catch(err){say(err.message);busy=false;}
@@ -98,7 +89,7 @@ function lobby(){
   if(!me)return '<section class="panel"><div class="eyebrow">PANTALLA CENTRAL</div><h2>Esperando el despegue</h2><p>Los pilotos preparan las flotas en sus dispositivos.</p></section>';
   if(ready && !editFleet)return '<section class="panel"><div class="eyebrow">HANGAR PRIVADO</div><h2>Tu flota está lista</h2>'+fleetStrip()+'<div class="actions"><button data-act="edit">Ajustar formación</button></div></section>';
   if(!draft.length)draft=ready?me.fleet.map(s=>[...s]):randomFleet();
-  return '<section class="panel"><div class="eyebrow">HANGAR PRIVADO</div><h2>Despliega tu flota</h2><p>Elige una nave y toca la casilla donde empieza.</p><div class="picker">'+ships.map((s,i)=>'<button class="'+(selectedShip===i?'active':'')+'" data-idx="'+i+'"><canvas data-ship="'+i+'"></canvas>'+s+' · '+lengths[i]+'</button>').join('')+'</div>'+grid('place')+'<div class="actions"><button data-act="rotate">Girar · '+(vertical?'vertical':'horizontal')+'</button><button data-act="shuffle">Al azar</button><button data-act="ready" class="primary">Flota lista ✓</button></div></section>';
+  return '<section class="panel"><div class="eyebrow">HANGAR PRIVADO</div><h2>Despliega tu flota</h2><p>Elige una nave y toca la casilla donde empieza.</p><div class="picker">'+ships.map((s,i)=>'<button class="'+(selectedShip===i?'active':'')+'" data-idx="'+i+'"><canvas data-ship="'+i+'"></canvas>'+s+' · '+lengths[i]+'</button>').join('')+'</div>'+grid('place')+'<div class="actions"><button data-act="rotate">Girar · '+(vertical?'vertical':'horizontal')+'</button><button data-act="shuffle">Al azar</button><button data-act="ready" class="primary">'+(state.practice?'Iniciar práctica':'Flota lista ✓')+'</button></div></section>';
 }
 function shotLine(s){
   return '<b>'+coord(s.cell)+'</b> · '+name(s.by)+' → '+(s.hits.length?s.hits.map(h=>name(h.id)+(h.sunk?' (nave destruida)':'')).join(' + '):'sin impacto');
@@ -114,7 +105,7 @@ function battleConsole(){
   const last=state.shots.at(-1);
   const info=contact?coverageLabel(contact):last?shotLine(last):'Toca el radar para consultar una casilla.';
   const targets=contact?.hits.map(h=>name(h.id)).join(', ');
-  return `<div class="flight-top"><h1>${turn}</h1><button data-act="room">Sala y registro ↗</button></div>
+  return `<div class="flight-top"><h1>${turn}</h1><div class="flight-tools">${state.practice?practiceViewLink():''}<button data-act="room">Sala y registro ↗</button></div></div>
     <div class="flight-grid"><section class="radar-pane" aria-label="Radar común"><div class="radar-frame">${grid('radar',contacts)}</div>
     <div class="radar-key"><span><b>?</b> Pendiente</span><span><b>✓</b> Final</span><span><b>✦</b> Impacto</span>${state.me?'<span><b class="hull-key"></b> Tu nave</span>':''}</div></section>
     <section class="command"><div class="readout" aria-live="polite"><strong>${contact?'Sector '+coord(selection):last?'Último disparo':'Radar común'}</strong><small>${info}</small>${targets?'<small>Impactos · '+targets+'</small>':''}</div>${controls}</section>
@@ -122,11 +113,20 @@ function battleConsole(){
     <section class="feed"><h2>Registro de disparos</h2><ol class="log">${state.shots.slice(-5).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Sin disparos registrados.</li>'}</ol></section>
     </div>`;
 }
+function practiceViewLink(){
+  if(spectator && !sessionStorage.getItem('piloto-'+code))return '';
+  return '<a class="button" href="'+link(!spectator)+'">'+(spectator?'Volver a pilotar':'Pantalla central')+'</a>';
+}
+function roomLabel(){
+  if(state.practice)return 'MODO PRÁCTICA';
+  return state.public?'PARTIDA PÚBLICA':'SALA PRIVADA';
+}
 function roomActions(){
+  if(state.practice)return '<button data-act="copy">Copiar enlace de pantalla central</button>';
   return '<button data-act="copy">Copiar invitación</button>'+(!spectator?'<a class="button" href="'+link(true)+'" target="_blank" rel="noopener">Pantalla central ↗</a>':'');
 }
 function updateRoomDialog(){
-  $('#roomContent').innerHTML='<div class="eyebrow">'+(state.public?'PARTIDA PÚBLICA':'SALA PRIVADA')+'</div><h2>Sala '+escape(code)+'</h2><div class="actions">'+roomActions()+'</div><h3>Últimos disparos</h3><ol class="log">'+(state.shots.slice(-8).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Sin disparos registrados.</li>')+'</ol><div class="actions"><button data-act="leave">'+(state.me && state.phase!=='over'?'Salir de la partida':'Volver al inicio')+'</button></div>';
+  $('#roomContent').innerHTML='<div class="eyebrow">'+roomLabel()+'</div><h2>Sala '+escape(code)+'</h2><div class="actions">'+roomActions()+'</div><h3>Últimos disparos</h3><ol class="log">'+(state.shots.slice(-8).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Sin disparos registrados.</li>')+'</ol><div class="actions"><button data-act="leave">'+(state.me && state.phase!=='over'?'Salir de la partida':'Volver al inicio')+'</button></div>';
 }
 function render(){
   const lobbyPhase=state.phase==='lobby',canStart=state.players.length>=2 && state.players.every(p=>p.ready);
@@ -139,8 +139,8 @@ function render(){
     if($('#roomDialog').open)updateRoomDialog();
     return;
   }
-  main.innerHTML='<div class="roomhead"><div><div class="eyebrow">'+(state.public?'PARTIDA PÚBLICA':'SALA PRIVADA')+'</div><h1>Sala <em>'+escape(code)+'</em></h1></div><div class="actions">'+roomActions()+'</div></div><div class="battlegrid">'+lobby()+'<aside><section class="panel"><div class="eyebrow">'+state.players.length+' / 4 PILOTOS</div><h2>Estado de flotas</h2>'+roster()+
-  (state.me?.id===state.host?'<button data-act="start" class="primary wide" '+(canStart?'':'disabled')+'>Iniciar partida</button><small>Se necesitan 2–4 pilotos con flotas listas.</small>':'')+'</section><button class="quiet" data-act="leave">'+(state.me?'Salir de la partida':'Volver al inicio')+'</button></aside></div>';
+  main.innerHTML='<div class="roomhead"><div><div class="eyebrow">'+roomLabel()+'</div><h1>Sala <em>'+escape(code)+'</em></h1></div><div class="actions">'+roomActions()+'</div></div><div class="battlegrid">'+lobby()+'<aside><section class="panel"><div class="eyebrow">'+state.players.length+' / 4 PILOTOS</div><h2>Estado de flotas</h2>'+roster()+
+  (!state.practice && state.me?.id===state.host?'<button data-act="start" class="primary wide" '+(canStart?'':'disabled')+'>Iniciar partida</button><small>Se necesitan 2–4 pilotos con flotas listas.</small>':'')+'</section><button class="quiet" data-act="leave">'+(state.me?'Salir de la partida':'Volver al inicio')+'</button></aside></div>';
   art();
 }
 async function refresh(){
@@ -169,7 +169,9 @@ document.addEventListener('click',async e=>{
   const act=b.dataset.act;if(!act)return;
   if(act==='room'){updateRoomDialog();$('#roomDialog').showModal();return;}
   if(act==='copy'){
-    try{await navigator.clipboard.writeText(link(false));say('Enlace de invitación copiado.');}catch{prompt('Copia el enlace para tus amigos',link(false));}return;
+    const url=link(state.practice);
+    try{await navigator.clipboard.writeText(url);say(state.practice?'Enlace de pantalla central copiado.':'Enlace de invitación copiado.');}
+    catch{prompt('Copia el enlace',url);}return;
   }
   if(act==='edit'){editFleet=true;draft=state.me.fleet.map(s=>[...s]);}
   if(act==='rotate')vertical=!vertical;
