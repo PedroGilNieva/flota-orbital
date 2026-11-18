@@ -1,6 +1,6 @@
 import { mkdir,readFile,writeFile,copyFile } from 'node:fs/promises';
 const assets={};
-for(const [file,type] of Object.entries({'index.html':'text/html','style.css':'text/css','app.js':'text/javascript','art.js':'text/javascript'})){
+for(const [file,type] of Object.entries({'index.html':'text/html','style.css':'text/css','app.js':'text/javascript','art.js':'text/javascript','radar.js':'text/javascript'})){
   assets[file==='index.html'?'/':'/'+file]=[type,await readFile('public/'+file,'utf8')];
 }
 const modules=await Promise.all(['game.js','service.js','worker.js'].map(async file=>{

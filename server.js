@@ -16,6 +16,7 @@ const storage = {
   run: (sql,...args) => db.prepare(sql).run(...args).changes
 };
 const files = new Map([['/', ['index.html','text/html']], ['/style.css',['style.css','text/css']], ['/app.js',['app.js','text/javascript']], ['/art.js',['art.js','text/javascript']]]);
+files.set('/radar.js',['radar.js','text/javascript']);
 
 async function readBody(req) {
   const chunks = [];

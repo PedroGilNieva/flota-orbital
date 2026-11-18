@@ -9,9 +9,10 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header><div class="brand"><span class="logo" aria-hidden="true">◈</span> FLOTA <b>ORBITAL</b></div><button id="rules" class="quiet">Cómo jugar <span>?</span></button></header>
+  <header><div class="brand"><span class="logo" aria-hidden="true">◈</span> FLOTA <b>ORBITAL</b></div><div id="identity"></div><button id="rules" class="quiet">Cómo jugar <span>?</span></button></header>
   <main id="main"></main><p id="notice" role="status"></p>
-  <dialog id="guide"><h2>Cómo jugar</h2><ol><li>Coloca tus cinco naves en el tablero secreto de 10 × 10. Ocupan 5, 4, 3, 3 y 2 casillas.</li><li>Elige una coordenada. El disparo alcanza esa casilla en todas las flotas rivales.</li><li>Si causas daño nuevo, vuelves a disparar. Si fallas, el turno pasa al siguiente jugador activo.</li><li>Gana la última flota con naves en pie. La pantalla central muestra disparos, impactos y bajas.</li></ol><button id="closeGuide" class="primary">Entendido</button></dialog>
+  <dialog id="roomDialog"><button class="dialog-x" id="closeRoom" aria-label="Cerrar">×</button><div id="roomContent"></div></dialog>
+  <dialog id="guide"><h2>Cómo jugar</h2><ol><li>Coloca tus cinco naves en el tablero secreto de 10 × 10. Ocupan 5, 4, 3, 3 y 2 casillas.</li><li>Elige una coordenada. El disparo alcanza esa casilla en todas las flotas rivales.</li><li>Si causas daño nuevo, vuelves a disparar. Si fallas, el turno pasa al siguiente jugador activo.</li><li>Una casilla con <b>?</b> todavía puede esconder una nave de quien disparó. Tócala para ver qué piloto queda por comprobar. La marca <b>✓</b> indica que la casilla está resuelta para todas las flotas activas.</li><li>Gana la última flota con naves en pie. La pantalla central muestra disparos, impactos y bajas.</li></ol><button id="closeGuide" class="primary">Entendido</button></dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

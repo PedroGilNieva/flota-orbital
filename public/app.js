@@ -1,4 +1,5 @@
 import { scene,mini,ships } from './art.js';
+import { radarContacts } from './radar.js';
 
 const $ = s => document.querySelector(s);
 const main=$('#main'), lengths=[5,4,3,3,2], letters='ABCDEFGHIJ';
@@ -7,7 +8,7 @@ let code=(params.get('sala') || '').toUpperCase();
 const spectator=params.get('vista')==='central';
 let token=spectator ? '' : sessionStorage.getItem('piloto-'+code) || '';
 let state=null, draft=[], selectedShip=0, vertical=false, selection=null, busy=false, reading=false, timer;
-let boardMode='radar', editFleet=false;
+let editFleet=false;
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function say(message){$('#notice').textContent=message;clearTimeout(timer);timer=setTimeout(()=>$('#notice').textContent='',5500);}
 function coord(c){return letters[Math.floor(c/10)]+(c%10+1);}
@@ -49,27 +50,41 @@ function home(){
   };
   if($('#byCode'))$('#byCode').onsubmit=e=>{e.preventDefault();location.assign('/?sala='+$('#roomcode').value.trim().toUpperCase());};
 }
-function grid(kind){
+function grid(kind,contacts){
   const fleet=kind==='place'?draft:state.me?.fleet || [];
-  const shots=new Map();
-  for(const shot of state.shots){if(!shots.has(shot.cell))shots.set(shot.cell,[]);shots.get(shot.cell).push(shot);}
   let html='<div class="board"><span></span>'+Array.from({length:10},(_,i)=>'<span>'+ (i+1)+'</span>').join('');
   for(let c=0;c<100;c++){
     if(c%10===0)html+='<span>'+letters[c/10]+'</span>';
-    const logs=shots.get(c) || [], hits=logs.flatMap(s=>s.hits);
     let text='',style='',desc='';
     if(kind==='radar'){
-      if(hits.length){text='✦'+(hits.length>1?hits.length:'');style='hit';desc=hits.map(h=>name(h.id)).join(', ');}
-      else if(logs.length){text='·';style='miss';desc='Sin impacto';}
+      const contact=contacts[c], hits=contact.hits;
+      style=contact.status;
+      desc=coverageLabel(contact);
+      if(hits.length){
+        text='<b class="hit-count">✦'+(hits.length>1?hits.length:'')+'</b>';
+        style+=' hit';desc+=' · Impactos en '+hits.map(h=>name(h.id)).join(', ');
+      }
+      if(contact.status!=='unexplored')text+='<small class="mark">'+(contact.pending?'?':'✓')+'</small>';
+      const ship=fleet.findIndex(s=>s.includes(c));
+      if(ship>=0){
+        const hull=fleet[ship], index=hull.indexOf(c);
+        style+=' hull '+(hull[1]-hull[0]===10?'vertical ':'')+(index===0?'stern':index===hull.length-1?'bow':'mid');
+        desc+=' · Tu nave '+ships[ship];
+        if(state.me.damage.includes(c)){style+=' damaged';desc+=' dañada';}
+      }
     }else{
       const ship=fleet.findIndex(cells=>cells.includes(c));
       if(ship>=0){style='occupied'+(kind==='place'&&ship===selectedShip?' chosen':'');text='━';desc=ships[ship];}
-      if(kind==='own' && state.me.damage.includes(c)){text='✦';style='hit';desc+=' · impacto';}
     }
     if(kind==='radar' && c===selection)style+=' selected';
     html+='<button type="button" class="cell '+style+'" data-cell="'+c+'" aria-label="'+coord(c)+' '+desc+'" title="'+coord(c)+' '+desc+'">'+text+'</button>';
   }
   return html+'</div>';
+}
+function coverageLabel(contact){
+  if(contact.pending)return 'Pendiente · falta comprobar a '+name(contact.pending);
+  if(contact.status==='final')return 'Final · todas las flotas activas comprobadas';
+  return 'Sin explorar';
 }
 function roster(){
   return state.players.map((p,i)=>{
@@ -88,23 +103,44 @@ function lobby(){
 function shotLine(s){
   return '<b>'+coord(s.cell)+'</b> · '+name(s.by)+' → '+(s.hits.length?s.hits.map(h=>name(h.id)+(h.sunk?' (nave destruida)':'')).join(' + '):'sin impacto');
 }
-function combat(){
+function battleConsole(){
+  const contacts=radarContacts(state.players,state.shots);
+  const contact=selection===null ? null : contacts[selection];
   const mine=state.turn===state.me?.id && state.phase==='playing';
-  const own=boardMode==='own' && state.me;
-  const logs=state.shots.filter(s=>s.cell===selection);
-  const used=logs.some(s=>s.by===state.me?.id);
-  const title=state.phase==='over'?'Victoria de '+name(state.turn):mine?'Tu turno de disparar':'Turno de '+name(state.turn);
-  return '<section class="panel"><div class="eyebrow">'+(spectator?'PANTALLA CENTRAL':'CONSOLA DE VUELO')+'</div><h2>'+title+'</h2><div class="tabs"><button data-act="radar" class="'+(!own?'active':'')+'">Radar común</button>'+(state.me?'<button data-act="own" class="'+(own?'active':'')+'">Mi flota</button>':'')+'</div>'+grid(own?'own':'radar')+
-  '<div class="legend"><span>✦ Impacto</span><span>· Sin impacto</span>'+(own?'<span>━ Tu nave</span>':'')+'</div>'+
-  (!own && selection!==null?'<div class="target"><strong>Sector '+coord(selection)+'</strong> '+(logs.length?logs.map(shotLine).join('<br>'):'Sin disparos registrados')+'</div>':'')+
-  (mine&&!own?'<button class="primary wide" data-act="fire" '+(selection===null||used?'disabled':'')+'>'+(used?'Ya disparaste aquí':selection===null?'Selecciona una coordenada':'Disparar a '+coord(selection))+'</button>':'')+'</section>';
+  const used=contact?.shots.some(s=>s.by===state.me?.id);
+  const turn=state.phase==='over'?'Victoria de '+name(state.turn):mine?'Tu turno':'Turno de '+name(state.turn);
+  const buttonLabel=used?'Ya disparaste aquí':selection===null?'Elige una casilla':'Disparar a '+coord(selection);
+  const controls=mine?'<button class="primary trigger" data-act="fire" '+(!contact||used?'disabled':'')+'>'+buttonLabel+'</button>':'';
+  const last=state.shots.at(-1);
+  const info=contact?coverageLabel(contact):last?shotLine(last):'Toca el radar para consultar una casilla.';
+  const targets=contact?.hits.map(h=>name(h.id)).join(', ');
+  return `<div class="flight-top"><h1>${turn}</h1><button data-act="room">Sala y registro ↗</button></div>
+    <div class="flight-grid"><section class="radar-pane" aria-label="Radar común"><div class="radar-frame">${grid('radar',contacts)}</div>
+    <div class="radar-key"><span><b>?</b> Pendiente</span><span><b>✓</b> Final</span><span><b>✦</b> Impacto</span>${state.me?'<span><b class="hull-key"></b> Tu nave</span>':''}</div></section>
+    <section class="command"><div class="readout" aria-live="polite"><strong>${contact?'Sector '+coord(selection):last?'Último disparo':'Radar común'}</strong><small>${info}</small>${targets?'<small>Impactos · '+targets+'</small>':''}</div>${controls}</section>
+    <section class="squad" aria-label="Naves restantes">${state.players.map((p,i)=>`<div class="unit c${i}" title="${escape(p.name)} · ${p.remaining} naves"><strong>${escape(p.name)}</strong><small>${p.remaining} / 5</small></div>`).join('')}</section>
+    <section class="feed"><h2>Registro de disparos</h2><ol class="log">${state.shots.slice(-5).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Sin disparos registrados.</li>'}</ol></section>
+    </div>`;
+}
+function roomActions(){
+  return '<button data-act="copy">Copiar invitación</button>'+(!spectator?'<a class="button" href="'+link(true)+'" target="_blank" rel="noopener">Pantalla central ↗</a>':'');
+}
+function updateRoomDialog(){
+  $('#roomContent').innerHTML='<div class="eyebrow">'+(state.public?'PARTIDA PÚBLICA':'SALA PRIVADA')+'</div><h2>Sala '+escape(code)+'</h2><div class="actions">'+roomActions()+'</div><h3>Últimos disparos</h3><ol class="log">'+(state.shots.slice(-8).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Sin disparos registrados.</li>')+'</ol><div class="actions"><button data-act="leave">'+(state.me && state.phase!=='over'?'Salir de la partida':'Volver al inicio')+'</button></div>';
 }
 function render(){
   const lobbyPhase=state.phase==='lobby',canStart=state.players.length>=2 && state.players.every(p=>p.ready);
-  main.innerHTML='<div class="roomhead"><div><div class="eyebrow">'+(state.public?'PARTIDA PÚBLICA':'SALA PRIVADA')+'</div><h1>Sala <em>'+escape(code)+'</em></h1></div><div class="actions"><button data-act="copy">Copiar invitación</button>'+(!spectator?'<a class="button" href="'+link(true)+'" target="_blank" rel="noopener">Pantalla central ↗</a>':'')+'</div></div><div class="battlegrid">'+(lobbyPhase?lobby():combat())+'<aside><section class="panel"><div class="eyebrow">'+state.players.length+' / 4 PILOTOS</div><h2>Estado de flotas</h2>'+roster()+
-  (lobbyPhase&&state.me?.id===state.host?'<button data-act="start" class="primary wide" '+(canStart?'':'disabled')+'>Iniciar partida</button><small>Se necesitan 2–4 pilotos con flotas listas.</small>':'')+'</section>'+
-  (!lobbyPhase?'<section class="panel"><div class="eyebrow">TELEMETRÍA</div><h2>Últimos disparos</h2><ol class="log">'+(state.shots.slice(-8).reverse().map(s=>'<li>'+shotLine(s)+'</li>').join('') || '<li>Esperando el primer disparo.</li>')+'</ol></section>':'')+
-  '<button class="quiet" data-act="leave">'+(state.me && state.phase!=='over'?'Salir de la partida':'Volver al inicio')+'</button></aside></div>';
+  const identity=state.me?name(state.me.id):'Pantalla central';
+  document.title=(state.me?'Piloto · ':'')+(state.players.find(p=>p.id===state.me?.id)?.name || 'Pantalla central')+' | Flota Orbital';
+  $('#identity').innerHTML=(state.me?'<small>PILOTO</small>':'')+'<strong>'+identity+'</strong>';
+  document.body.classList.toggle('in-flight',!lobbyPhase);
+  if(!lobbyPhase){
+    main.innerHTML=battleConsole();
+    if($('#roomDialog').open)updateRoomDialog();
+    return;
+  }
+  main.innerHTML='<div class="roomhead"><div><div class="eyebrow">'+(state.public?'PARTIDA PÚBLICA':'SALA PRIVADA')+'</div><h1>Sala <em>'+escape(code)+'</em></h1></div><div class="actions">'+roomActions()+'</div></div><div class="battlegrid">'+lobby()+'<aside><section class="panel"><div class="eyebrow">'+state.players.length+' / 4 PILOTOS</div><h2>Estado de flotas</h2>'+roster()+
+  (state.me?.id===state.host?'<button data-act="start" class="primary wide" '+(canStart?'':'disabled')+'>Iniciar partida</button><small>Se necesitan 2–4 pilotos con flotas listas.</small>':'')+'</section><button class="quiet" data-act="leave">'+(state.me?'Salir de la partida':'Volver al inicio')+'</button></aside></div>';
   art();
 }
 async function refresh(){
@@ -117,7 +153,7 @@ async function refresh(){
   }catch(err){say(err.message);}
   finally{reading=false;}
 }
-main.addEventListener('click',async e=>{
+document.addEventListener('click',async e=>{
   if(!state || busy)return;
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.idx!==undefined){selectedShip=Number(b.dataset.idx);render();return;}
@@ -131,13 +167,13 @@ main.addEventListener('click',async e=>{
     render();return;
   }
   const act=b.dataset.act;if(!act)return;
+  if(act==='room'){updateRoomDialog();$('#roomDialog').showModal();return;}
   if(act==='copy'){
     try{await navigator.clipboard.writeText(link(false));say('Enlace de invitación copiado.');}catch{prompt('Copia el enlace para tus amigos',link(false));}return;
   }
   if(act==='edit'){editFleet=true;draft=state.me.fleet.map(s=>[...s]);}
   if(act==='rotate')vertical=!vertical;
   if(act==='shuffle')draft=randomFleet();
-  if(act==='radar'||act==='own')boardMode=act;
   if(['ready','start','fire','leave'].includes(act)){
     if(act==='leave'){
       if(!state.me || state.phase==='over'){location.assign('/');return;}
@@ -155,5 +191,6 @@ main.addEventListener('click',async e=>{
   render();
 });
 $('#rules').onclick=()=>$('#guide').showModal();
+$('#closeRoom').onclick=()=>$('#roomDialog').close();
 $('#closeGuide').onclick=()=>$('#guide').close();
 if(code && (token||spectator)){main.innerHTML='<section class="panel"><h2>Conectando a la sala…</h2><a href="/">Volver al inicio</a></section>';refresh();setInterval(refresh,1300);}else home();
